@@ -1,0 +1,25 @@
+version: '3.8'
+services:
+  config-service:
+    build: ./config
+    ports:
+      - "8888:8888" 
+  eureka-service:
+    depends_on:
+      - config-service
+    build: ./eureka
+    ports:
+      - "8761:8761"
+    environment:
+      EUREKA_client_register_with_eureka: false
+      eureka_client_fetch_registry: false
+      SPRING_APPLICATION_NAME : eureka-service
+      SPRING_CONFIG_IMPORT: configserver:http://localhost:8888
+      MANAGEMENT_SECURITY_ENABLE: false
+
+
+
+
+
+
+
