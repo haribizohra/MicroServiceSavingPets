@@ -1,25 +1,101 @@
-version: '3.8'
+version: '2.7'
 services:
-  config-service:
-    build: ./config
-    ports:
-      - "8888:8888" 
+  
   eureka-service:
-    depends_on:
-      - config-service
+    container_name: eureka
     build: ./eureka
     ports:
-      - "8761:8761"
+      - 8761:8761
+    hostname: eureka
+    image: eureka-service  
+
+  gateway-service:
+    container_name: gateway
+    build: ./gateway
+    ports:
+      - 8083:8083
+    hostname: gateway
+    depends_on:
+      -  eureka-service    
     environment:
-      EUREKA_client_register_with_eureka: false
-      eureka_client_fetch_registry: false
-      SPRING_APPLICATION_NAME : eureka-service
-      SPRING_CONFIG_IMPORT: configserver:http://localhost:8888
-      MANAGEMENT_SECURITY_ENABLE: false
+      - eureka.client.serviceUrl.defaultZone = "http://eureka:8761/eureka" 
+
+  mysqldb:
+    image: mysql:5.7
+    restart: unless-stopped
+    env_file: ./.env
+    container_name : mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=$MYSQLDB_ROOT_PASSWORD
+      - MYSQL_DATABASE=$MYSQLDB_DATABASE
+      - eureka.client.serviceUrl.defaultZone=http://eureka:8761/eureka
+    ports:
+      - $MYSQLDB_LOCAL_PORT:$MYSQLDB_DOCKER_PORT
+    volumes:
+      - db:/var/lib/mysql
+  forum:
+    depends_on:
+      - mysqldb
+      - gateway-service
+      - eureka-service
+    build: ./forum
+    container_name: forum
+    restart: on-failure
+    env_file: ./.env
+    ports:
+      - $FSPRING_LOCAL_PORT:$FSPRING_DOCKER_PORT
+    environment:
+      SPRING_APPLICATION_JSON: '{
+        "spring.datasource.url"  : "jdbc:mysql://mysqldb:$MYSQLDB_DOCKER_PORT/$MYSQLDB_DATABASE?useSSL=false",
+        "spring.datasource.username" : "$MYSQLDB_USER",
+        "spring.datasource.password" : "$MYSQLDB_ROOT_PASSWORD",
+        "spring.jpa.properties.hibernate.dialect" : "org.hibernate.dialect.MySQL5InnoDBDialect",
+        "spring.jpa.hibernate.ddl-auto" : "update",
+        "eureka.client.serviceUrl.defaultZone" : "http://eureka:8761/eureka"
+      }'
+    volumes:
+      - .m2:/root/.m2
+    stdin_open: true
+    tty: true
+
+  mongodb:
+    image: mongo:5.0.2
+    restart: unless-stopped
+    env_file: ./.env
+    container_name : mongo
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=$MONGODB_USER
+      - MONGO_INITDB_ROOT_PASSWORD=$MONGODB_PASSWORD
+      - eureka.client.serviceUrl.defaultZone=http://eureka:8761/eureka    
+    ports:
+      - $MONGODB_LOCAL_PORT:$MONGODB_DOCKER_PORT
+    volumes:
+      - db:/data/db
+  user:
+    depends_on:
+      - mongodb
+      - gateway-service
+      - eureka-service
+    build: ./user
+    restart: unless-stopped
+    env_file: ./.env
+    container_name : user
+    ports:
+      - $NODE_LOCAL_PORT:$NODE_DOCKER_PORT
+    environment:
+      - DB_HOST=mongodb
+      - DB_USER=$MONGODB_USER
+      - DB_PASSWORD=$MONGODB_PASSWORD
+      - DB_NAME=$MONGODB_DATABASE
+      - DB_PORT=$MONGODB_DOCKER_PORT
+      - eureka.client.serviceUrl.defaultZone=http://eureka:8761/eureka
+    stdin_open: true
+    tty: true    
 
 
-
-
+volumes:
+  db:
+     
 
 
 
