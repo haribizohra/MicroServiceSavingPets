@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  local-service:
+    image: mongo:latest
+    container_name: 'local-service'
+    ports:
+      - 27017:27017
+  local:
+    image: local
+    container_name: local
+    ports:
+      - 8089:8089
+    links:
+      - local-service
+    
+      
+  
+    
